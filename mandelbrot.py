@@ -13,20 +13,20 @@ def mandelbrot_GPU(nx, ny):
     z = (x + 1j*y).astype(np.complex64).reshape(linear)
     mandelbrot = lambda N: SourceModule("""
     #include <pycuda-complex.hpp>
-    __global__ void mandelbrot(pycuda::complex<float> *z, pycuda::complex<float> *c, int *r)
+    __global__ void mandelbrot(pycuda::complex<float> *x, int *r)
     {
         int i = blockDim.x * blockIdx.x + threadIdx.x;
         if( i < %d ){
-            r[i] = -1;
+            pycuda::complex<float> c = x[i], z = x[i]; r[i] = -1;
             for(int j=0; j<80; ++j)
-                if (abs(z[i]) <= 4) z[i] = z[i]*z[i] + c[i];
+                if (abs(z) <= 4) z = z*z + c;
                 else { r[i] = j; break; }
         }
     } """ % N[0])
     ret = gpuarray.empty(linear, np.int32)
     kernel = mandelbrot(linear).get_function("mandelbrot")
     t_start = time()
-    kernel(gpuarray.to_gpu(z), gpuarray.to_gpu(z), ret, grid=(((linear[0]+1)//1024),1,1), block=(1024,1,1))
+    kernel(gpuarray.to_gpu(z), ret, grid=(((linear[0]+1)//1024),1,1), block=(1024,1,1))
     return ret.get().reshape((nx, ny)), time()-t_start
 
 r1 = mandelbrot_GPU(800, 800)
